@@ -24,8 +24,8 @@ This project is built with a modern, cloud-native architecture designed for scal
   * **AI & Embeddings**: **Google Cloud Vertex AI** is used to access Gemini models for text embeddings (`gemini-embedding-001`).
   * **Vector Database**: **Google Firestore** is used in place of a traditional vector database. It stores the text chunks and their associated vector embeddings, which are retrieved and used to build a vector store in memory at query time.
   * **LLM Orchestration**: **LangChain** is used to structure the RAG pipeline, manage prompts, and interact with different LLM providers.
-  * [cite\_start]**Containerization**: **Docker** is used to create a consistent and isolated environment for the application. [cite: 15]
-  * [cite\_start]**Developer Tooling**: A `Makefile` provides convenient commands for installation, environment setup, and running the application. [cite: 1]
+  * **Containerization**: **Docker** is used to create a consistent and isolated environment for the application.
+  * **Developer Tooling**: A `Makefile` provides convenient commands for installation, environment setup, and running the application.
 
 -----
 
@@ -44,7 +44,7 @@ Follow these steps to set up and run the project on your local machine.
 
 The project requires a `.env` file with your specific GCP and API key configurations. A template is provided for convenience.
 
-[cite\_start]First, run the `setup-env` command to create an `.env.example` file[cite: 4]:
+First, run the `setup-env` command to create an `.env.example` file:
 
 ```sh
 make setup-env
@@ -89,11 +89,11 @@ Create a new service account in your GCP project and grant it the following perm
 * **Error Reporting Writer** (`roles/errorreporting.writer`): Allows the application to send error logs to GCP's Error Reporting service.
 * **Service Account Token Creator** (`roles/iam.serviceAccountTokenCreator`): Allows the service account to create access tokens to securely authenticate with other Google APIs.
 
-After creating the service account and assigning these permissions, you must generate an access key in **JSON** format. Rename the key file to `credential.json` and place it in the `./credentials/` directory. [cite_start]This path is referenced in the `GOOGLE_APPLICATION_CREDENTIALS` environment variable[cite: 15, 4].
+After creating the service account and assigning these permissions, you must generate an access key in **JSON** format. Rename the key file to `credential.json` and place it in the `./credentials/` directory. This path is referenced in the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
 
 ### 2\. Installation
 
-[cite\_start]The `install` command creates a Python virtual environment, activates it, and installs all the required dependencies from `requirements.txt`. [cite: 2, 3]
+The `install` command creates a Python virtual environment, activates it, and installs all the required dependencies from `requirements.txt`.
 
 ```sh
 make install
@@ -101,13 +101,13 @@ make install
 
 ### 3\. Running the Development Server
 
-To start the application, use the `run-dev` command. [cite\_start]This command first checks if the `.env` file exists and then launches a Uvicorn server with hot-reloading enabled on port 8080. [cite: 5, 6, 8, 9]
+To start the application, use the `run-dev` command. This command first checks if the `.env` file exists and then launches a Uvicorn server with hot-reloading enabled on port 8080.
 
 ```sh
 make run-dev
 ```
 
-[cite\_start]If the `.env` file is not found, the command will exit with an error, prompting you to create it first. [cite: 7]
+If the `.env` file is not found, the command will exit with an error, prompting you to create it first.
 
 The API documentation (Swagger UI) will be available at `http://localhost:8080/docs`.
 
@@ -221,13 +221,13 @@ The API is structured for clarity and ease of use.
 
 The `Makefile` includes additional commands to help with development:
 
-  * [cite\_start]**Code Formatting**: Formats the codebase using `isort`, `black`, and `ruff`. [cite: 10, 11]
+  * **Code Formatting**: Formats the codebase using `isort`, `black`, and `ruff`.
 
     ```sh
     make code-formatting
     ```
 
-  * [cite\_start]**Clean Up**: Removes Python cache files and other temporary artifacts. [cite: 12, 13, 14]
+  * **Clean Up**: Removes Python cache files and other temporary artifacts.
 
     ```sh
     make clear
