@@ -1,7 +1,3 @@
-Of course. Here is a well-crafted README for your project, emphasizing its features, execution, and development nuances, all based on the files you provided.
-
------
-
 # GenAI RAG Assistant
 
 This project is a solution to the "Machine Learning Engineering - LLM" challenge. It's a robust system built with Python and FastAPI that allows users to upload PDF documents, which are then processed and indexed for a Retrieval-Augmented Generation (RAG) question-and-answering system. The application leverages Google Cloud's Vertex AI for generating embeddings and Firestore for storing them, providing a scalable and efficient backend for contextual AI-powered chats.
