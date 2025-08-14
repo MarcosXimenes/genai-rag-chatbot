@@ -1,0 +1,167 @@
+import logging
+from typing import List
+
+from fastapi import HTTPException
+from langchain.prompts import ChatPromptTemplate
+from langchain.schema.output_parser import StrOutputParser
+from langchain.schema.runnable import RunnableParallel, RunnablePassthrough
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from langchain_google_vertexai import ChatVertexAI
+from langchain_openai import ChatOpenAI
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from crud.vertex_ai import VertexAICRUD
+from utils.globals import GEMINI_QA_MODEL, OPENAI_API_KEY, OPENAI_QA_MODEL
+
+
+def chunk_document_text(
+    document_text: str,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 150,
+) -> list:
+    try:
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len,
+        )
+        text_chunks = text_splitter.split_text(document_text)
+        return text_chunks
+
+    except Exception as e:
+        logging.error(f"Error in the chunking process: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to process the document: {str(e)}"
+        )
+
+
+class CustomVertexAIEmbeddings(Embeddings):
+    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        return await VertexAICRUD.generate_embedding(
+            texts, task_type="RETRIEVAL_DOCUMENT"
+        )
+
+    async def aembed_query(self, text: str) -> List[float]:
+        embeddings = await VertexAICRUD.generate_embedding(
+            [text], task_type="RETRIEVAL_QUERY"
+        )
+        return embeddings[0].values
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        raise NotImplementedError("Use aembed_documents for asynchronous calls.")
+
+    def embed_query(self, text: str) -> List[float]:
+        raise NotImplementedError("Use aembed_query for asynchronous calls.")
+
+
+def format_docs(docs: List[Document]) -> str:
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+class LangChainQA:
+    @staticmethod
+    async def get_answer(
+        user_question: str,
+        vectors_list: List[List[float]],
+        texts_list: List[str],
+    ):
+        if not vectors_list or not texts_list:
+            raise HTTPException(
+                status_code=400,
+                detail="Vector and text lists cannot be empty.",
+            )
+
+        if len(vectors_list) != len(texts_list):
+            raise HTTPException(
+                status_code=400,
+                detail="Vector and text lists must have the same length.",
+            )
+
+        try:
+            query_embedder = CustomVertexAIEmbeddings()
+            text_embeddings = list(zip(texts_list, vectors_list))
+
+            vectorstore = FAISS.from_embeddings(
+                text_embeddings=text_embeddings,
+                embedding=query_embedder,
+            )
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 15})
+
+            template = """Given the conversation between a user and a helpful assistant and some search results, create a final answer for the assistant. The answer should use all relevant information from the search results, not introduce any additional information, and use exactly the same words as the search results when possible. The assistant's answer should be no more than 20 sentences. Response in the same language of the question.
+
+            Context:
+            {context}
+
+            Question:
+            {question}
+
+            Response:
+            """
+            prompt = ChatPromptTemplate.from_template(template)
+
+            llm_gemini = ChatVertexAI(model=GEMINI_QA_MODEL, temperature=0.2)
+            llm_openai = ChatOpenAI(
+                model=OPENAI_QA_MODEL, temperature=0.2, api_key=OPENAI_API_KEY
+            )
+
+            models_to_try = [
+                {"name": "Gemini", "llm": llm_gemini},
+                {"name": "OpenAI", "llm": llm_openai},
+            ]
+
+            for model_info in models_to_try:
+                model_name = model_info["name"]
+                llm = model_info["llm"]
+
+                rag_chain_from_docs = (
+                    RunnablePassthrough.assign(
+                        context=(lambda x: format_docs(x["context"]))
+                    )
+                    | prompt
+                    | llm
+                    | StrOutputParser()
+                )
+
+                rag_chain = RunnableParallel(
+                    {"context": retriever, "question": RunnablePassthrough()}
+                ).assign(answer=rag_chain_from_docs)
+
+                try:
+                    logging.info(
+                        f"Attempting to generate response with model: {model_name}..."
+                    )
+                    result = await rag_chain.ainvoke(user_question)
+
+                    logging.info(f"Response successfully generated by {model_name}.")
+
+                    source_documents = []
+                    for doc in result["context"]:
+                        source_documents.append(
+                            {"page_content": doc.page_content, "metadata": doc.metadata}
+                        )
+
+                    return {
+                        "answer": result["answer"],
+                        "sources": source_documents,
+                        "model_used": model_name,
+                    }
+
+                except Exception as e:
+                    logging.warning(f"Failed to use model {model_name}: {e}")
+                    continue
+
+            raise HTTPException(
+                status_code=500,
+                detail="Both LLM services (Gemini and OpenAI) failed.",
+            )
+
+        except Exception as e:
+            logging.error(f"Unexpected error in the QA process: {e}", exc_info=True)
+            if not isinstance(e, HTTPException):
+                raise HTTPException(
+                    status_code=500, detail=f"Internal server error: {str(e)}"
+                )
+            else:
+                raise e

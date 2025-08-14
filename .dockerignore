@@ -75,6 +75,10 @@ target/
 # JetBrains IDE
 .idea/
 
+# Visual Studio Code
+.vscode/
+.vscode/*
+
 # PyCharm
 *.idea/
 *.idea/*
